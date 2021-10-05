@@ -20,6 +20,10 @@ class KeysPrefReducer: ReducerType {
     case let .isRightOptionMeta(value):
       state.mainWindowTemplate.isRightOptionMeta = value
       state.mainWindows.keys.forEach { state.mainWindows[$0]?.isRightOptionMeta = value }
+
+    case let .drawMarkedTextInline(value):
+      state.mainWindowTemplate.drawMarkedTextInline = value
+      state.mainWindows.keys.forEach { state.mainWindows[$0]?.drawMarkedTextInline = value }
     }
 
     return (state, pair.action, true)

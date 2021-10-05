@@ -422,6 +422,7 @@ class MainWindow: NSObject,
 
         self.neoVimView.isLeftOptionMeta = state.isLeftOptionMeta
         self.neoVimView.isRightOptionMeta = state.isRightOptionMeta
+        self.neoVimView.drawMarkedTextInline = state.drawMarkedTextInline
 
         if self.neoVimView.trackpadScrollResistance
           != state.trackpadScrollResistance.cgf

@@ -34,6 +34,7 @@ public class NvimView: NSView,
 
   public var isLeftOptionMeta = false
   public var isRightOptionMeta = false
+  public var drawMarkedTextInline = true
 
   public let uuid = UUID()
   public let api = RxNeovimApi()

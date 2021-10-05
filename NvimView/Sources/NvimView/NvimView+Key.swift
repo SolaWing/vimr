@@ -19,6 +19,7 @@ public extension NvimView {
 
     if !isMeta {
       let cocoaHandledEvent = NSTextInputContext.current?.handleEvent(event) ?? false
+      if self.hasMarkedText() { self.keyDownDone = true } // mark state ignore Down,Up,Left,Right,=,- etc keys
       if self.keyDownDone, cocoaHandledEvent { return }
     }
 
@@ -54,7 +55,12 @@ public extension NvimView {
     default: return
     }
 
-    let length = self.markedText?.count ?? 0
+    let length: Int
+    if drawMarkedTextInline {
+        length = self.markedText?.count ?? 0
+    } else {
+        length = 0
+    }
     try? self.bridge
       .deleteCharacters(length, andInputEscapedString: self.vimPlainString(text))
       .wait()
@@ -171,26 +177,24 @@ public extension NvimView {
     default: self.markedText = String(describing: object) // should not occur
     }
 
+    let deleteLength: Int
     if replacementRange != .notFound {
       guard let newMarkedPosition = self.ugrid.firstPosition(
         fromFlatCharIndex: replacementRange.location
       ) else { return }
 
       self.markedPosition = newMarkedPosition
-
-      self.log.debug("Deleting \(replacementRange.length) and inputting \(self.markedText!)")
-      try? self.bridge.deleteCharacters(
-        replacementRange.length,
-        andInputEscapedString: self.vimPlainString(self.markedText!)
-      ).wait()
+      deleteLength = replacementRange.length
     } else {
-      self.log.debug("Deleting \(oldMarkedTextLength) and inputting \(self.markedText!)")
+      deleteLength = oldMarkedTextLength
+    }
+    if drawMarkedTextInline {
+      self.log.debug("Deleting \(deleteLength) and inputting \(self.markedText!)")
       try? self.bridge.deleteCharacters(
-        oldMarkedTextLength,
+        deleteLength,
         andInputEscapedString: self.vimPlainString(self.markedText!)
       ).wait()
     }
-
     self.keyDownDone = true
   }
 

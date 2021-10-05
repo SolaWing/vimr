@@ -301,6 +301,7 @@ extension MainWindow {
 
     var isLeftOptionMeta = false
     var isRightOptionMeta = false
+    var drawMarkedTextInline = true
 
     // to be cleaned
     var urlsToOpen = [URL: OpenMode]()
@@ -322,6 +323,7 @@ extension MainWindow {
 
       case isLeftOptionMeta = "is-left-option-meta"
       case isRightOptionMeta = "is-right-option-meta"
+      case drawMarkedTextInline = "draw-marked-text-inline"
 
       case trackpadScrollResistance = "trackpad-scroll-resistance"
       case useInteractiveZsh = "use-interactive-zsh"
@@ -344,6 +346,10 @@ extension MainWindow {
       self.isRightOptionMeta = try container.decode(
         forKey: .isRightOptionMeta,
         default: State.default.isRightOptionMeta
+      )
+      self.drawMarkedTextInline = try container.decode(
+        forKey: .drawMarkedTextInline,
+        default: State.default.drawMarkedTextInline
       )
       self.useInteractiveZsh = try container.decode(
         forKey: .useInteractiveZsh,
@@ -434,6 +440,7 @@ extension MainWindow {
       try container.encode(self.drawsParallel, forKey: .drawsParallel)
       try container.encode(self.isLeftOptionMeta, forKey: .isLeftOptionMeta)
       try container.encode(self.isRightOptionMeta, forKey: .isRightOptionMeta)
+      try container.encode(self.drawMarkedTextInline, forKey: .drawMarkedTextInline)
       try container.encode(self.useInteractiveZsh, forKey: .useInteractiveZsh)
       try container.encode(self.fileBrowserShowHidden, forKey: .isShowHidden)
 
