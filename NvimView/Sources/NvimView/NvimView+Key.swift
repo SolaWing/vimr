@@ -11,6 +11,7 @@ public extension NvimView {
   override func keyDown(with event: NSEvent) {
     self.keyDownDone = false
 
+    self.log.debug("keyDown \(event)")
     NSCursor.setHiddenUntilMouseMoves(true)
 
     let modifierFlags = event.modifierFlags
@@ -55,15 +56,15 @@ public extension NvimView {
     default: return
     }
 
-    let length: Int
-    if drawMarkedTextInline {
-        length = self.markedText?.count ?? 0
+    if drawMarkedTextInline && hasMarkedText() {
+      move(right: markedText!.count - markedSelectedRange.location,
+           delete: markedText!.count,
+           input: text, back: 0)
     } else {
-        length = 0
+      try? self.bridge
+        .deleteCharacters(0, andInputEscapedString: self.vimPlainString(text))
+        .wait()
     }
-    try? self.bridge
-      .deleteCharacters(length, andInputEscapedString: self.vimPlainString(text))
-      .wait()
 
     if self.hasMarkedText() { _unmarkText() }
     self.keyDownDone = true
@@ -149,12 +150,34 @@ public extension NvimView {
     return false
   }
 
+  func move(right: Int, delete: Int, input: String, back: Int) {
+    var feed = ""
+    for _ in 0..<right {
+      feed.append("<Right>")
+    }
+    for _ in 0..<delete {
+      feed.append("<BS>")
+    }
+    feed.append(self.vimPlainString(input))
+    for _ in 0..<back {
+      feed.append("<Left>")
+    }
+    try? self.bridge.deleteCharacters(
+      0,
+      andInputEscapedString: feed
+    ).wait()
+  }
+
   func setMarkedText(_ object: Any, selectedRange: NSRange, replacementRange: NSRange) {
     self.log.debug(
       "object: \(object), selectedRange: \(selectedRange), replacementRange: \(replacementRange)"
     )
 
-    defer { self.keyDownDone = true }
+    let oldMarkedSelectedRange = self.markedSelectedRange
+    defer {
+      self.keyDownDone = true
+      self.markedSelectedRange = selectedRange
+    }
 
     if self.markedText == nil { self.markedPosition = self.ugrid.cursorPosition }
 
@@ -178,11 +201,9 @@ public extension NvimView {
       deleteLength = oldMarkedTextLength
     }
     if drawMarkedTextInline {
-      self.log.debug("Deleting \(deleteLength) and inputting \(self.markedText!)")
-      try? self.bridge.deleteCharacters(
-        deleteLength,
-        andInputEscapedString: self.vimPlainString(self.markedText!)
-      ).wait()
+      let moveToMiddle = self.markedText!.count - selectedRange.location
+      move(right: oldMarkedTextLength > 0 ? oldMarkedTextLength - oldMarkedSelectedRange.location : 0,
+           delete: deleteLength, input: self.markedText!, back: moveToMiddle)
     }
     self.keyDownDone = true
   }
@@ -203,6 +224,7 @@ public extension NvimView {
 
     self.markedText = nil
     self.markedPosition = .null
+    self.markedSelectedRange = .notFound
   }
 
   /**
