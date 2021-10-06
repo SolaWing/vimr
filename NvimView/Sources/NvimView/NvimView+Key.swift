@@ -65,18 +65,7 @@ public extension NvimView {
       .deleteCharacters(length, andInputEscapedString: self.vimPlainString(text))
       .wait()
 
-    if length > 0 {
-      self.ugrid.unmarkCell(at: self.markedPosition)
-      self.markForRender(position: self.markedPosition)
-      if self.ugrid.isNextCellEmpty(self.markedPosition) {
-        self.ugrid.unmarkCell(at: self.markedPosition.advancing(row: 0, column: 1))
-        self.markForRender(position: self.markedPosition.advancing(row: 0, column: 1))
-      }
-    }
-
-    self.lastMarkedText = self.markedText
-    self.markedText = nil
-    self.markedPosition = .null
+    if self.hasMarkedText() { _unmarkText() }
     self.keyDownDone = true
   }
 
@@ -199,6 +188,11 @@ public extension NvimView {
   }
 
   func unmarkText() {
+    _unmarkText()
+    self.keyDownDone = true
+  }
+
+  func _unmarkText() {
     let position = self.markedPosition
     self.ugrid.unmarkCell(at: position)
     self.markForRender(position: position)
@@ -209,7 +203,6 @@ public extension NvimView {
 
     self.markedText = nil
     self.markedPosition = .null
-    self.keyDownDone = true
   }
 
   /**
