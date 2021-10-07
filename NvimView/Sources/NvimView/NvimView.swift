@@ -287,7 +287,7 @@ public class NvimView: NSView,
 
   var markedText: String?
   var markedPosition = Position.null
-  var markedSelectedRange: NSRange = .notFound
+  var markedSelectedRange: NSRange = .init(location: 0, length: 0)
 
   let bridgeLogger = OSLog(subsystem: Defs.loggerSubsystem, category: Defs.LoggerCategory.bridge)
   let log = OSLog(subsystem: Defs.loggerSubsystem, category: Defs.LoggerCategory.view)

@@ -57,9 +57,8 @@ public extension NvimView {
     }
 
     if drawMarkedTextInline && hasMarkedText() {
-      move(right: markedText!.count - markedSelectedRange.location,
-           delete: markedText!.count,
-           input: text, back: 0)
+      replace(oldString: markedText!, oldRange: markedSelectedRange,
+              newString: text, newRange: .init(location: text.count, length: 0))
     } else {
       try? self.bridge
         .deleteCharacters(0, andInputEscapedString: self.vimPlainString(text))
@@ -151,21 +150,63 @@ public extension NvimView {
   }
 
   func move(right: Int, delete: Int, input: String, back: Int) {
+    // self.log.debug("right: \(right), delete: \(delete), input: \(input), back: \(back)")
     var feed = ""
-    for _ in 0..<right {
-      feed.append("<Right>")
+    if right >= 0 {
+      for _ in 0..<right {
+        feed.append("<Right>")
+      }
+    } else {
+      for _ in 0..<(-right) {
+        feed.append("<Left>")
+      }
     }
+    assert(delete >= 0)
     for _ in 0..<delete {
       feed.append("<BS>")
     }
     feed.append(self.vimPlainString(input))
-    for _ in 0..<back {
-      feed.append("<Left>")
+    if back >= 0 {
+      for _ in 0..<back {
+        feed.append("<Left>")
+      }
+    } else {
+      for _ in 0..<(-back) {
+        feed.append("<Right>")
+      }
     }
     try? self.bridge.deleteCharacters(
       0,
       andInputEscapedString: feed
     ).wait()
+  }
+  private func replace(oldString: String, oldRange: NSRange, replacementRange: NSRange = .notFound, newString: String, newRange: NSRange) {
+    // increment update, to reduce patch and delay
+    // only change middle, left common prefix and suffix untouch
+    let newStringArray = Array(newString)
+    let oldStringArray = Array(oldString)
+
+    var commonPrefixLength = 0
+    let maxCheckPrefixLength = min(oldRange.location, newStringArray.count) // use old cursor position as seperator. to handle only move case
+    while commonPrefixLength < maxCheckPrefixLength, oldStringArray[commonPrefixLength] == newStringArray[commonPrefixLength] {
+      commonPrefixLength += 1
+    }
+
+    var commonSuffixLength = 0
+    let maxCheckSuffix = min(oldStringArray.count, newStringArray.count) - commonPrefixLength
+    while commonSuffixLength < maxCheckSuffix, oldStringArray[oldStringArray.count - 1 - commonSuffixLength] == newStringArray[newStringArray.count - 1 - commonSuffixLength] {
+      commonSuffixLength += 1
+    }
+
+    let right = oldStringArray.count - commonSuffixLength - oldRange.location
+    var bs = oldStringArray.count - commonSuffixLength - commonPrefixLength
+    if replacementRange != .notFound {
+      // FIXME: not sure how this work, guess it is trigger at first(empty string?)
+      bs += replacementRange.length
+    }
+    let input = String(newStringArray[commonPrefixLength..<(newStringArray.count - commonSuffixLength)])
+    let back = newStringArray.count - commonSuffixLength - newRange.location
+    move(right: right, delete: bs, input: input, back: back)
   }
 
   func setMarkedText(_ object: Any, selectedRange: NSRange, replacementRange: NSRange) {
@@ -173,15 +214,14 @@ public extension NvimView {
       "object: \(object), selectedRange: \(selectedRange), replacementRange: \(replacementRange)"
     )
 
+    // default to (0,0), so it's a valid range for empty string
     let oldMarkedSelectedRange = self.markedSelectedRange
     defer {
-      self.keyDownDone = true
       self.markedSelectedRange = selectedRange
+      self.keyDownDone = true
     }
-
+    let oldMarkedText = self.markedText ?? ""
     if self.markedText == nil { self.markedPosition = self.ugrid.cursorPosition }
-
-    let oldMarkedTextLength = self.markedText?.count ?? 0
 
     switch object {
     case let string as String: self.markedText = string
@@ -189,21 +229,16 @@ public extension NvimView {
     default: self.markedText = String(describing: object) // should not occur
     }
 
-    let deleteLength: Int
     if replacementRange != .notFound {
       guard let newMarkedPosition = self.ugrid.firstPosition(
         fromFlatCharIndex: replacementRange.location
       ) else { return }
 
       self.markedPosition = newMarkedPosition
-      deleteLength = replacementRange.length
-    } else {
-      deleteLength = oldMarkedTextLength
     }
     if drawMarkedTextInline {
-      let moveToMiddle = self.markedText!.count - selectedRange.location
-      move(right: oldMarkedTextLength > 0 ? oldMarkedTextLength - oldMarkedSelectedRange.location : 0,
-           delete: deleteLength, input: self.markedText!, back: moveToMiddle)
+      replace(oldString: oldMarkedText, oldRange: oldMarkedSelectedRange, replacementRange: replacementRange,
+              newString: markedText!, newRange: selectedRange)
     }
     self.keyDownDone = true
   }
@@ -224,7 +259,7 @@ public extension NvimView {
 
     self.markedText = nil
     self.markedPosition = .null
-    self.markedSelectedRange = .notFound
+    self.markedSelectedRange = .init(location: 0, length: 0)
   }
 
   /**
