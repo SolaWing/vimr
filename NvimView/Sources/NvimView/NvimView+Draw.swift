@@ -68,10 +68,19 @@ extension NvimView {
     // the corresponding cell...
     if self.mode == .termFocus { return }
 
-    let cursorPosition = self.ugrid.cursorPosition
+    var cursorPosition: Position
+    if !self.drawMarkedTextInline, self.hasMarkedText() {
+      cursorPosition = self.markedPosition
+      cursorPosition.column += KeyUtils.displayWidth(string: self.markedText!.prefix(self.markedSelectedRange.location))
+      if cursorPosition.column >= self.ugrid.size.width {
+        cursorPosition.column = self.ugrid.size.width - 1
+      }
+    } else {
+      cursorPosition = self.ugrid.cursorPosition
+    }
     let defaultAttrs = self.cellAttributesCollection.defaultAttributes
 
-    let cursorRegion = self.cursorRegion(for: self.ugrid.cursorPosition)
+    let cursorRegion = self.cursorRegion(for: cursorPosition)
     if cursorRegion.top < 0
       || cursorRegion.bottom > self.ugrid.size.height - 1
       || cursorRegion.left < 0

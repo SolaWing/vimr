@@ -191,6 +191,16 @@ final class UGrid: CustomStringConvertible, Codable {
       stop = region.top - rows - 1
       step = -1
     }
+    var needRestoreMark = false
+    if let row = self.markedInfo?.position.row, region.top <= row && row <= region.bottom  {
+      remove(markedInfo: _markedInfo!)
+      needRestoreMark = true
+    }
+    defer {
+      if needRestoreMark, let keepMarked = _markedInfo {
+        insert(markedInfo: keepMarked)
+      }
+    }
 
     // copy cell data
     let rangeWithinRow = region.left...region.right
@@ -242,6 +252,7 @@ final class UGrid: CustomStringConvertible, Codable {
       count: self.size.width
     )
     self.cells = Array(repeating: emptyRow, count: self.size.height)
+    self._markedInfo = nil // everything need to be reset
   }
 
   func clear(region: Region) {
@@ -277,6 +288,16 @@ final class UGrid: CustomStringConvertible, Codable {
     chunk: [String],
     attrIds: [Int]
   ) {
+    var needRestoreMark = false
+    if row == self.markedInfo?.position.row {
+      remove(markedInfo: _markedInfo!)
+      needRestoreMark = true
+    }
+    defer {
+      if needRestoreMark, let keepMarked = _markedInfo {
+        insert(markedInfo: keepMarked)
+      }
+    }
     for column in startCol..<endCol {
       self.cells[row][column].string = chunk[column - startCol]
       self.cells[row][column].attrId = attrIds[column - startCol]
@@ -291,6 +312,57 @@ final class UGrid: CustomStringConvertible, Codable {
         )
       )
     }
+  }
+  struct MarkedInfo {
+      var position: Position
+      var markedCell: [UCell]
+  }
+  var _markedInfo: MarkedInfo?
+  var markedInfo: MarkedInfo? {
+      get { _markedInfo }
+      set {
+          assert(Thread.isMainThread, "should occur on main thread!")
+          var changedRowStart = Int.max
+          if let old = _markedInfo {
+            remove(markedInfo: old)
+            changedRowStart = old.position.row
+          }
+          _markedInfo = newValue
+          if let new = newValue {
+            insert(markedInfo: new)
+            changedRowStart = min(changedRowStart, new.position.row)
+          }
+          if changedRowStart < self.size.height {
+            recomputeFlatIndices(rowStart: changedRowStart, rowEndInclusive: self.size.height - 1)
+          }
+      }
+  }
+  func remove(markedInfo: MarkedInfo) {
+    self.cells[markedInfo.position.row].removeSubrange(markedInfo.position.column..<(markedInfo.position.column+markedInfo.markedCell.count))
+  }
+  func insert(markedInfo: MarkedInfo) {
+    self.cells[markedInfo.position.row].insert(contentsOf: markedInfo.markedCell, at: markedInfo.position.column)
+  }
+  // marked text insert into cell directly
+  func updateMark(
+      position: Position,
+      markedText: String
+  ) {
+      assert(Thread.isMainThread, "should occur on main thread!")
+      let markedTextArray: [String] = markedText.reduce(into: []) { (array, char) in
+          array.append(String(char))
+          if !KeyUtils.isHalfWidth(char: char) {
+              array.append(clearString)
+          }
+      }
+      let cells = markedTextArray.map {
+          UCell(string: $0, attrId: CellAttributesCollection.markedAttributesId)
+      }
+      self.markedInfo = MarkedInfo(position: position, markedCell: cells)
+
+  }
+  func clearMark() {
+      self.markedInfo = nil
   }
 
   func recomputeFlatIndices(rowStart: Int, rowEndInclusive: Int) {

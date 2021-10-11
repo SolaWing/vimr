@@ -321,7 +321,8 @@ extension NvimView {
       ))
     }
 
-    if row == self.markedPosition.row,
+    if drawMarkedTextInline,
+       row == self.markedPosition.row,
        startCol <= self.markedPosition.column,
        self.markedPosition.column <= endCol
     {

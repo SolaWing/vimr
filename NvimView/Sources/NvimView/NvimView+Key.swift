@@ -239,6 +239,19 @@ public extension NvimView {
     if drawMarkedTextInline {
       replace(oldString: oldMarkedText, oldRange: oldMarkedSelectedRange, replacementRange: replacementRange,
               newString: markedText!, newRange: selectedRange)
+    } else {
+      // FIXME: handle and test replacementRange
+      if replacementRange.length > 0 {
+        try? self.bridge
+        .deleteCharacters(replacementRange.length, andInputEscapedString: "")
+        .wait()
+      }
+      self.ugrid.updateMark(position: markedPosition, markedText: markedText!)
+      self.markForRender(region: Region(
+        top: self.markedPosition.row, bottom: self.markedPosition.row,
+        left: self.markedPosition.column,
+        right: self.ugrid.size.width
+        ))
     }
     self.keyDownDone = true
   }
@@ -249,14 +262,22 @@ public extension NvimView {
   }
 
   func _unmarkText() {
-    let position = self.markedPosition
-    self.ugrid.unmarkCell(at: position)
-    self.markForRender(position: position)
-    if self.ugrid.isNextCellEmpty(position) {
-      self.ugrid.unmarkCell(at: position.advancing(row: 0, column: 1))
-      self.markForRender(position: position.advancing(row: 0, column: 1))
+    guard hasMarkedText() else { return }
+    if drawMarkedTextInline {
+      let position = self.markedPosition
+      self.ugrid.unmarkCell(at: position)
+      self.markForRender(position: position)
+      if self.ugrid.isNextCellEmpty(position) {
+        self.ugrid.unmarkCell(at: position.advancing(row: 0, column: 1))
+        self.markForRender(position: position.advancing(row: 0, column: 1))
+      }
+    } else {
+      self.ugrid.clearMark()
+      self.markForRender(region: Region(
+        top: self.markedPosition.row, bottom: self.markedPosition.row,
+        left: self.markedPosition.column, right: self.ugrid.size.width
+        ))
     }
-
     self.markedText = nil
     self.markedPosition = .null
     self.markedSelectedRange = .init(location: 0, length: 0)
